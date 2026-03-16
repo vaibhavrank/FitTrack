@@ -1,0 +1,252 @@
+import hashlib
+import random
+import secrets
+from datetime import datetime, timedelta
+from urllib.parse import quote_plus
+
+from fastapi_mail import FastMail, MessageSchema, MessageType
+from sqlalchemy.orm import Session
+
+from app.config.email_config import conf
+from app.config.settings import settings
+from app.models.otp import OTP
+from app.models.user import User
+from app.utils.jwt import decode_jwt, encode_jwt
+from app.utils.security import hash_password, verify_password
+from google.auth.transport import requests
+from google.oauth2 import id_token
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
+
+
+async def send_otp(db: Session, email: str):
+    
+    otp_code = generate_otp()
+
+    expires = datetime.utcnow() + timedelta(minutes=5)
+    otp_hash = hashlib.sha256(otp_code.encode()).hexdigest()
+
+    db.query(OTP).filter(OTP.email == email).delete()
+    print(f"Storing OTP for email: {email} with OTP: {otp_code} and hash: {otp_hash} expiring at: {expires}")
+    otp = OTP(email=email, otp_code=otp_code, otp_hash=otp_hash, expires_at=expires)
+
+    db.add(otp)
+    db.commit()
+
+
+    # Email message
+    message = MessageSchema(
+        subject="Your OTP Code",
+        recipients=[email],
+        body=f"Your OTP code is: {otp_code}. It expires in 5 minutes.",
+        subtype="plain"
+    )
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
+    return {"message": "OTP sent to email"}
+
+
+
+async def verify_otp(db: Session, email: str, otp: str):
+
+    email = email.strip()
+    otp = otp.strip()
+
+    print(f"Verifying OTP for email: {email} with OTP: {otp}")
+
+    # hash incoming otp
+    otp_hash = hashlib.sha256(otp.encode()).hexdigest()
+
+    # debug: print all OTPs for that email
+    otps = db.query(OTP).filter(OTP.email == email).all()
+    for record in otps:
+        print(
+            f"OTP record -> email: {record.email}, otp_code: {record.otp_code}, "
+            f"otp_hash: {record.otp_hash}, expires_at: {record.expires_at}"
+        )
+    
+    # find matching record
+    record = db.query(OTP).filter(
+        OTP.email == email,
+        OTP.otp_hash == otp_hash
+    ).first()
+
+    if not record:
+        print("OTP not found")
+        return None
+
+    # check expiry
+    if record.expires_at < datetime.utcnow():
+        print("OTP expired")
+        return None
+
+    # find user
+    user = db.query(User).filter(User.email == email).first()
+
+    # create user if not exists, otherwise mark verified
+    if not user:
+        user = User(email=email, is_verified=True)
+        db.add(user)
+        db.flush()
+    else:
+        user.is_verified = True
+
+    # delete used otp
+    db.delete(record)
+
+    return user
+
+# Google OAuth functions would go here, but are not included in this snippet.
+
+
+
+def google_login(db: Session, token: str):
+
+    idinfo = id_token.verify_oauth2_token(
+        token,
+        requests.Request(),
+        settings.google_client_id
+    )
+
+    email = idinfo["email"]
+    google_id = idinfo["sub"]
+
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        user = User(
+            email=email,
+            google_id=google_id,
+            is_verified=True
+        )
+
+        db.add(user)
+        db.flush()
+    else:
+        if not user.google_id:
+            user.google_id = google_id
+        user.is_verified = True
+
+    return user
+
+
+def create_session(db: Session, email: str):
+    """Create a JWT session token and return it along with its expiration time."""
+
+    expires_at = datetime.utcnow() + timedelta(minutes=settings.jwt_expiration_minutes)
+
+    session_token = encode_jwt(
+        {"sub": email, "email": email},
+        secret=settings.jwt_secret_key,
+        exp_minutes=settings.jwt_expiration_minutes,
+    )
+
+    return session_token, expires_at
+
+
+def get_user_from_session_token(db: Session, session_token: str):
+    """Return the user associated with a valid JWT session token, or None."""
+
+    if not session_token:
+        return None
+
+    payload = decode_jwt(session_token, secret=settings.jwt_secret_key)
+    if not payload:
+        return None
+
+    email = payload.get("email") or payload.get("sub")
+    if not email:
+        return None
+
+    return db.query(User).filter(User.email == email).first()
+
+
+def login_with_email_password(db: Session, email: str, password: str):
+    """Verify credentials and return the user if valid."""
+
+    email = email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user or not verify_password(password, user.password_hash):
+        return None
+
+    # ensure account is marked verified after successful login
+    user.is_verified = True
+    return user
+
+
+def generate_password_reset_token():
+    return secrets.token_urlsafe(32)
+
+
+async def send_password_reset(db: Session, email: str):
+    """Generate and send a password reset token via email."""
+
+    email = email.strip()
+
+    user = db.query(User).filter(User.email == email).first()
+
+    # For security, don't reveal whether the email exists.
+    if not user:
+        return {"message": "If an account exists for this email, a reset link has been sent."}
+
+    reset_token = generate_password_reset_token()
+    token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
+    expires = datetime.utcnow() + timedelta(hours=1)
+
+    # Store reset token info on the user record
+    user.reset_password_token_hash = token_hash
+    user.reset_password_expires_at = expires
+    db.commit()
+
+    reset_link = (
+        f"{settings.frontend_url.rstrip('/')}/reset-password?token={reset_token}&email={quote_plus(email)}"
+    )
+
+    message = MessageSchema(
+        subject="Reset your password",
+        recipients=[email],
+        body=(
+            f"Click the link below to reset your password:\n\n{reset_link}\n\n"
+            f"This link expires in 1 hour.\n"
+            "If you did not request a password reset, you can ignore this email."
+        ),
+        subtype="plain",
+    )
+    fm = FastMail(conf)
+    await fm.send_message(message)
+
+    return {"message": "If an account exists for this email, a reset link has been sent."}
+
+
+
+def reset_password(db: Session, email: str, token: str, new_password: str):
+    """Validate reset token and update the user's password."""
+
+    email = email.strip().lower()
+    token = token.strip()
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return None
+
+    if (
+        not user.reset_password_token_hash
+        or user.reset_password_token_hash != token_hash
+        or not user.reset_password_expires_at
+        or user.reset_password_expires_at < datetime.utcnow()
+    ):
+        return None
+
+    user.password_hash = hash_password(new_password)
+    user.is_verified = True
+
+    # Clear reset token once used
+    user.reset_password_token_hash = None
+    user.reset_password_expires_at = None
+
+    return user

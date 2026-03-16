@@ -1,0 +1,18 @@
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from datetime import datetime
+from app.config.database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    password_hash = Column(String, nullable=True)
+    google_id = Column(String, nullable=True)
+
+    # Password reset token (stored as a hash for security)
+    reset_password_token_hash = Column(String, nullable=True)
+    reset_password_expires_at = Column(DateTime, nullable=True)
+
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.now())
