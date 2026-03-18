@@ -8,3 +8,4 @@ pydantic-extra-types==2.11.0
 pydantic-settings==2.13.1
 pydantic_core==2.41.5
 uvicorn==0.41.0
+psycopg2-binary==2.9.9
