@@ -1,8 +1,16 @@
-# generate requirements.txt
 fastapi
-uvicorn
-openai
+uvicorn[standard]
+
+pydantic
+pydantic-settings
+
+sqlalchemy
+psycopg[binary]
+greenlet
+
+alembic
+Mako
+
 python-dotenv
-pytest
-pytest-asyncio
-httpx   
+
+gunicorn
