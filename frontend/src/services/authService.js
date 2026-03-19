@@ -17,6 +17,7 @@ export function saveAuthFromResponse(data) {
 }
 
 export function sendOtp(email) {
+  console.log("Sending OTP for email:", email);
   return apiConnector.post("/auth/send-otp", null, { params: { email } });
 }
 

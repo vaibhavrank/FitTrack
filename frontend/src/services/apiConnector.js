@@ -2,7 +2,7 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const TOKEN_KEY = "fittrack_jwt";
-
+console.log("API Connector initialized with base URL:", API_BASE);
 export class ApiError extends Error {
   constructor(message, status, data) {
     super(message);

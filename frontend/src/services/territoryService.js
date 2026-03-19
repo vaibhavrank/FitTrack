@@ -2,7 +2,7 @@ import axios from "axios";
 import apiConnector from "./apiConnector";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-
+console.log("Using API base URL:", BASE_URL);
 const client = axios.create({
   baseURL: BASE_URL,
   headers: {
