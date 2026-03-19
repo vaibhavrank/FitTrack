@@ -18,5 +18,6 @@ google-auth
 python-dotenv
 fastapi-mail
 requests
+resend
 
 gunicorn
