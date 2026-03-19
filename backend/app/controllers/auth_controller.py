@@ -4,10 +4,9 @@ import secrets
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 
-from fastapi_mail import FastMail, MessageSchema, MessageType
 from sqlalchemy.orm import Session
 
-from app.config.email_config import conf
+from app.config.email_config import send_email
 from app.config.settings import settings
 from app.models.otp import OTP
 from app.models.user import User
@@ -21,7 +20,6 @@ def generate_otp():
 
 
 async def send_otp(db: Session, email: str):
-    
     otp_code = generate_otp()
 
     expires = datetime.utcnow() + timedelta(minutes=5)
@@ -34,19 +32,15 @@ async def send_otp(db: Session, email: str):
     db.add(otp)
     db.commit()
 
-
-    # Email message
-    message = MessageSchema(
+    # Send OTP via Resend
+    send_email(
+        to_email=email,
         subject="Your OTP Code",
-        recipients=[email],
         body=f"Your OTP code is: {otp_code}. It expires in 5 minutes.",
-        subtype="plain"
+        is_html=False,
     )
-    fm = FastMail(conf)
-    await fm.send_message(message)
 
     return {"message": "OTP sent to email"}
-
 
 
 async def verify_otp(db: Session, email: str, otp: str):
@@ -205,18 +199,16 @@ async def send_password_reset(db: Session, email: str):
         f"{settings.frontend_url.rstrip('/')}/reset-password?token={reset_token}&email={quote_plus(email)}"
     )
 
-    message = MessageSchema(
+    send_email(
+        to_email=email,
         subject="Reset your password",
-        recipients=[email],
         body=(
             f"Click the link below to reset your password:\n\n{reset_link}\n\n"
             f"This link expires in 1 hour.\n"
             "If you did not request a password reset, you can ignore this email."
         ),
-        subtype="plain",
+        is_html=False,
     )
-    fm = FastMail(conf)
-    await fm.send_message(message)
 
     return {"message": "If an account exists for this email, a reset link has been sent."}
 

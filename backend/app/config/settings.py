@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     mail_username: str
     mail_password: str
     frontend_url: str
-    
+    resend_api_key: str
     # JWT configuration
     jwt_secret_key: str
     jwt_expiration_minutes: int = 60 * 24 * 7  # 7 days
