@@ -12,7 +12,9 @@ greenlet
 
 alembic
 Mako
+google-auth
 
 python-dotenv
+fastapi-mail
 
 gunicorn
