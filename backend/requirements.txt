@@ -9,6 +9,7 @@ sqlalchemy
 psycopg[binary]
 psycopg2-binary
 greenlet
+geoalchemy2
 
 alembic
 Mako
