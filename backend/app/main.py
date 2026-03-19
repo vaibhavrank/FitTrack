@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from sqlalchemy import text
-from config.database import Base
+from app.config.database import Base
 from app.config.database import engine
 from app.routes.auth_routes import router as auth_router
 from app.routes.activity_routes import router as activity_router
