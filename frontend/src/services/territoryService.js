@@ -8,6 +8,7 @@ const client = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
 client.interceptors.request.use((config) => {
@@ -22,13 +23,18 @@ client.interceptors.request.use((config) => {
 });
 
 export async function getTerritories() {
-  const res = await client.get("/territories");
+  // Use a wide default bbox to return all territories if the server does not filter.
+  const res = await client.get("/territories", {
+    params: {
+      bbox: "-180,-90,180,90",
+    },
+  });
   return res.data;
 }
 
 export async function claimTerritory(geoJsonPolygon, metadata = {}) {
   // geoJsonPolygon should be an array of [lat, lng] pairs forming a closed polygon.
-  return client.post("/territory/claim", {
+  return client.post("/territories/claim", {
     polygon: geoJsonPolygon,
     ...metadata,
   });

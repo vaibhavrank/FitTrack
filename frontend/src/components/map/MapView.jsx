@@ -18,7 +18,7 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import ActivityControls from "./ActivityControls";
 import RouteTracker from "./RouteTracker";
 import TerritoryLayer from "./TerritoryLayer";
-import { getTerritories } from "../services/territoryService";
+import { getTerritories } from "../../services/territoryService";
 
 // Fix for default Leaflet icon not displaying when bundling with Vite.
 delete L.Icon.Default.prototype._getIconUrl;

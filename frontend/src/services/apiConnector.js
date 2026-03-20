@@ -140,7 +140,7 @@ async function request(options = {}) {
   const init = {
     method,
     headers: mergedHeaders,
-    credentials: includeCredentials ? "same-origin" : undefined,
+    credentials: includeCredentials ? "include" : undefined,
   };
 
   if (data !== undefined && data !== null) {

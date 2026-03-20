@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { haversineDistance, isPointNearPolygon } from "../utilities/geo";
-import { sendLocationUpdate, endActivity } from "../services/activityService";
-import { claimTerritory } from "../services/territoryService";
+import { haversineDistance, isPointNearPolygon } from "../../utilities/geo";
+import { sendLocationUpdate, endActivity } from "../../services/activityService";
+import { claimTerritory } from "../../services/territoryService";
 
 const DEFAULT_SEND_INTERVAL = 5000;
 const LOOP_DISTANCE_METERS = 15;

@@ -34,11 +34,15 @@ export function googleLogin(token) {
 }
 
 export function resendOtp(email) {
-  return apiConnector.post("/auth/resend-otp", { email });
+  return apiConnector.post("/auth/send-otp", null, { params: { email } });
 }
 
 export function forgotPassword(email) {
   return apiConnector.post("/auth/forgot-password", { email });
+}
+
+export function loginWithPassword(email, password) {
+  return apiConnector.post("/auth/login", { email, password });
 }
 
 export function resetPassword(token, password, email) {

@@ -7,14 +7,17 @@ import GoogleSignInButton from "../../components/auth/GoogleSignInButton";
 import OtpInput from "../../components/auth/OtpInput";
 import Timer from "../../components/auth/Timer";
 import { useToast } from "../../components/ToastContext";
-import { sendOtp, verifyOtp, resendOtp, googleLogin, saveAuthFromResponse, decodeToken } from "../../services/authService";
+import { cls } from "../../components/auth/cls";
+import { sendOtp, verifyOtp, resendOtp, googleLogin, saveAuthFromResponse, decodeToken, loginWithPassword } from "../../services/authService";
 
 export default function LoginForm({ onForgot }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [email, setEmail] = useState("");
+  const [method, setMethod] = useState("otp"); // "otp" | "password"
   const [step, setStep] = useState("send"); // "send" | "verify"
+  const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [otpError, setOtpError] = useState("");
   const [otpExpired, setOtpExpired] = useState(false);
@@ -76,6 +79,31 @@ export default function LoginForm({ onForgot }) {
       navigate("/");
     } catch (err) {
       setOtpError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePasswordLogin() {
+    if (!validateEmail()) return;
+    if (!password) {
+      setErrors({ password: "Password is required" });
+      return;
+    }
+
+    setLoading(true);
+    setApiError("");
+    try {
+      const data = await loginWithPassword(email, password);
+      const userPayload = {
+        id: data.user_id,
+        email,
+      };
+      dispatch(login({ user: userPayload, token: null }));
+      showToast("Logged in successfully");
+      navigate("/");
+    } catch (err) {
+      setApiError(err.message);
     } finally {
       setLoading(false);
     }
@@ -203,20 +231,73 @@ export default function LoginForm({ onForgot }) {
         <span className="relative z-10">{loading ? "Sending…" : "Send OTP"}</span>
         <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
       </button>
-      <div className="flex justify-between items-center">
+      <div className="flex gap-2 justify-center mb-3">
         <button
-          onClick={onForgot}
-          className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors underline underline-offset-2"
+          type="button"
+          onClick={() => setMethod("otp")}
+          className={cls(
+            "px-3 py-1 rounded-full text-xs font-semibold",
+            method === "otp" ? "bg-cyan-500 text-white" : "bg-gray-700 text-gray-200"
+          )}
         >
-          Forgot password?
+          OTP login
         </button>
-        <GoogleSignInButton
-          onSuccess={handleGoogleSuccess}
-          onError={handleGoogleError}
-          disabled={loading || googleLoading}
-          className="text-xs"
-        />
+        <button
+          type="button"
+          onClick={() => setMethod("password")}
+          className={cls(
+            "px-3 py-1 rounded-full text-xs font-semibold",
+            method === "password" ? "bg-cyan-500 text-white" : "bg-gray-700 text-gray-200"
+          )}
+        >
+          Password login
+        </button>
       </div>
+
+      {method === "password" ? (
+        <>
+          <Field
+            label="Password"
+            type="password"
+            value={password}
+            onChange={setPassword}
+            error={errors.password}
+            placeholder="Enter your password"
+          />
+          <button
+            onClick={handlePasswordLogin}
+            disabled={loading}
+            className="w-full py-3 rounded-xl font-bold text-sm tracking-widest uppercase bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {loading ? "Signing in…" : "Sign in with password"}
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={handleSendOtp}
+            disabled={loading}
+            className="relative w-full py-3 rounded-xl font-bold text-sm tracking-widest uppercase overflow-hidden group transition-all bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="relative z-10">{loading ? "Sending…" : "Send OTP"}</span>
+            <span className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </button>
+          <div className="flex justify-between items-center">
+            <button
+              onClick={onForgot}
+              className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors underline underline-offset-2"
+            >
+              Forgot password?
+            </button>
+            <GoogleSignInButton
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              disabled={loading || googleLoading}
+              className="text-xs"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
