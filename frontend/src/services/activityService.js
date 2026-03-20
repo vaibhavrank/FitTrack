@@ -22,20 +22,24 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-export async function sendLocationUpdate({ activityType, coords, timestamp }) {
-  // Backend can use this endpoint to store live tracking updates.
-  // ``coords`` should be { latitude, longitude }.
-  return client.post("/activities/location", {
-    activityType,
-    location: coords,
+export async function startActivity(activityType) {
+  const res = await client.post("/activity/start", { activity_type: activityType });
+  return res.data;
+}
+
+export async function sendLocationUpdate({ sessionId, latitude, longitude, accuracy, speed, timestamp }) {
+  return client.post("/activity/location", {
+    session_id: sessionId,
+    latitude,
+    longitude,
+    accuracy,
+    speed,
     timestamp,
   });
 }
 
-export async function endActivity({ activityType, route, durationSeconds }) {
-  return client.post("/activities/complete", {
-    activityType,
-    route,
-    durationSeconds,
+export async function endActivity(sessionId) {
+  return client.post("/activity/end", {
+    session_id: sessionId,
   });
 }

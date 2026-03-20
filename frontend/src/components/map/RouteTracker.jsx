@@ -9,6 +9,7 @@ const LOOP_DISTANCE_METERS = 15;
 export default function RouteTracker({
   isTracking,
   activityType,
+  sessionId,
   territories = [],
   onLocationUpdate,
   onRouteUpdate,
@@ -21,9 +22,15 @@ export default function RouteTracker({
   const claimedRef = useRef(false);
   const startTimeRef = useRef(null);
 
-  const sendUpdate = async (coords, timestamp) => {
+  const sendUpdate = async ({ sessionId, coords, timestamp }) => {
     try {
-      await sendLocationUpdate({ activityType, coords, timestamp });
+      await sendLocationUpdate({
+        sessionId,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: 10,
+        timestamp: new Date(timestamp).toISOString(),
+      });
     } catch (err) {
       if (onError) onError(err?.message || "Failed to send location");
     }
@@ -91,7 +98,9 @@ export default function RouteTracker({
     const now = Date.now();
     if (now - lastSendRef.current >= DEFAULT_SEND_INTERVAL) {
       lastSendRef.current = now;
-      sendUpdate(coords, position.timestamp);
+      if (sessionId) {
+        sendUpdate({ sessionId, coords, timestamp: position.timestamp });
+      }
     }
 
     if (routeRef.current.length > 3) {
@@ -111,15 +120,8 @@ export default function RouteTracker({
         watchIdRef.current = null;
       }
 
-      if (routeRef.current.length > 1) {
-        const durationSeconds = startTimeRef.current
-          ? Math.round((Date.now() - startTimeRef.current) / 1000)
-          : 0;
-        endActivity({
-          activityType,
-          route: routeRef.current,
-          durationSeconds,
-        }).catch((err) => {
+      if (routeRef.current.length > 1 && sessionId) {
+        endActivity(sessionId).catch((err) => {
           // ignore errors; status isn't critical
           // eslint-disable-next-line no-console
           console.warn("End activity failed", err);
@@ -162,7 +164,7 @@ export default function RouteTracker({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTracking, activityType, territories]);
+  }, [isTracking, activityType, territories, sessionId]);
 
   return null;
 }

@@ -19,6 +19,7 @@ import ActivityControls from "./ActivityControls";
 import RouteTracker from "./RouteTracker";
 import TerritoryLayer from "./TerritoryLayer";
 import { getTerritories } from "../../services/territoryService";
+import { startActivity } from "../../services/activityService";
 
 // Fix for default Leaflet icon not displaying when bundling with Vite.
 delete L.Icon.Default.prototype._getIconUrl;
@@ -50,6 +51,7 @@ export default function MapView({ defaultCenter = [20, 0], defaultZoom = 3 }) {
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [followLocation, setFollowLocation] = useState(true);
+  const [sessionId, setSessionId] = useState(null);
 
   const mapRef = useRef(null);
 
@@ -99,11 +101,20 @@ export default function MapView({ defaultCenter = [20, 0], defaultZoom = 3 }) {
     setErrorMessage(message);
   };
 
-  const handleStartTracking = () => {
+  const handleStartTracking = async () => {
     setRoute([]);
     setIsTracking(true);
     setStatusMessage(`Started ${activityType}`);
     setErrorMessage("");
+
+    try {
+      const session = await startActivity(activityType);
+      setSessionId(session.id);
+    } catch (err) {
+      console.warn("Failed to start activity session", err);
+      setErrorMessage("Unable to start activity session");
+      setIsTracking(false);
+    }
   };
 
   const handleStopTracking = () => {
@@ -203,6 +214,7 @@ export default function MapView({ defaultCenter = [20, 0], defaultZoom = 3 }) {
           <RouteTracker
             isTracking={isTracking}
             activityType={activityType}
+            sessionId={sessionId}
             territories={territories}
             onLocationUpdate={handleLocationUpdate}
             onRouteUpdate={handleRouteUpdate}
