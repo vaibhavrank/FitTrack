@@ -31,6 +31,11 @@ class ActivitySessionResponse(BaseModel):
     total_distance: float
     status: str
 
+class ClaimTerritoryRequest(BaseModel):
+    polygon: list[list[float]]
+    activityType: Optional[str] = None
+    source: Optional[str] = None
+
 class TerritoryResponse(BaseModel):
     id: int
     owner_id: int

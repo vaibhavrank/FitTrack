@@ -12,11 +12,11 @@ app.include_router(auth_router)
 app.include_router(activity_router)
 app.include_router(territory_router)
 
-# add localhost :5173 to allowed origins for CORS
+# Add CORS for dynamic frontend origins while supporting cookies/credentials.
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

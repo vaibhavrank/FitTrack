@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -43,7 +43,7 @@ async def verify_otp_route(
         key="session_token",
         value=session_token,
         httponly=True,
-        samesite="lax",
+        samesite="none",
         secure=False,
         expires=int(expires_at.timestamp()),
     )
@@ -70,7 +70,7 @@ def login_route(data: LoginRequest, response: Response, db: Session = Depends(ge
         key="session_token",
         value=session_token,
         httponly=True,
-        samesite="lax",
+        samesite="none",
         secure=False,
         expires=int(expires_at.timestamp()),
     )
@@ -83,15 +83,23 @@ def login_route(data: LoginRequest, response: Response, db: Session = Depends(ge
 
 def get_current_user(
     session_token: str | None = Cookie(None, alias="session_token"),
+    authorization: str | None = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    if not session_token:
+    token = None
+
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+    if not token:
+        token = session_token
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
 
-    user = get_user_from_session_token(db, session_token)
+    user = get_user_from_session_token(db, token)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -116,7 +124,7 @@ def google_login_route(token: str, response: Response, db: Session = Depends(get
         key="session_token",
         value=session_token,
         httponly=True,
-        samesite="lax",
+        samesite="none",
         secure=False,
         expires=int(expires_at.timestamp()),
     )

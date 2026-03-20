@@ -6,22 +6,28 @@ import json
 from app.config.database import get_db
 from app.routes.auth_routes import get_current_user
 from app.services.territory_service import TerritoryService
-from app.schemas.activity_schema import TerritoryResponse
+from app.schemas.activity_schema import TerritoryResponse, ClaimTerritoryRequest
 
 router = APIRouter(prefix="/territories", tags=["Territories"])
 
 @router.get("/", response_model=List[TerritoryResponse])
 def get_territories(
-    bbox: str = Query(..., description="Bounding box as min_lon,min_lat,max_lon,max_lat"),
+    bbox: str = Query(None, description="Bounding box as min_lon,min_lat,max_lon,max_lat"),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    try:
-        min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(","))
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid bbox format")
-
-    territories = TerritoryService.get_territories_in_bbox(db, min_lon, min_lat, max_lon, max_lat)
+    print("Received bbox:", bbox)
+    if bbox:
+        try:
+            print("HEre it comes!!!!!!!!!!!!!!!!", bbox)
+            min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(","))
+        
+        except ValueError:
+            print("Invalid bbox format:", bbox)
+            raise HTTPException(status_code=400, detail="Invalid bbox format")
+        territories = TerritoryService.get_territories_in_bbox(db, min_lon, min_lat, max_lon, max_lat)
+    else:
+        territories = TerritoryService.get_all_territories(db)
 
     result = []
     for t in territories:
@@ -36,3 +42,22 @@ def get_territories(
         ))
 
     return result
+
+@router.post("/claim", response_model=TerritoryResponse)
+def claim_territory(
+    request: ClaimTerritoryRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    territory = TerritoryService.claim_territory(db, request.polygon, current_user.id)
+    if not territory:
+        raise HTTPException(status_code=400, detail="Unable to claim territory")
+
+    geojson = db.query(func.ST_AsGeoJSON(territory.polygon)).scalar()
+    return TerritoryResponse(
+        id=territory.id,
+        owner_id=territory.owner_id,
+        polygon=json.loads(geojson),
+        area=territory.area,
+        updated_at=territory.updated_at
+    )

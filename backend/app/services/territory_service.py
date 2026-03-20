@@ -117,7 +117,62 @@ class TerritoryService:
         territories = db.query(Territory).filter(
             func.ST_Intersects(Territory.polygon, bbox)
         ).all()
+        print("Found territories:", len(territories))
         return territories
+
+    @staticmethod
+    def get_all_territories(db: Session):
+        return db.query(Territory).all()
+
+    @staticmethod
+    def claim_territory(db: Session, polygon_coords: list[list[float]], user_id: int):
+        if not polygon_coords or len(polygon_coords) < 3:
+            return None
+
+        # convert from [lat, lng] to WKT lon lat
+        coords = []
+        for point in polygon_coords:
+            if len(point) < 2:
+                continue
+            lat, lon = point[0], point[1]
+            coords.append((lon, lat))
+        if len(coords) < 3:
+            return None
+
+        # ensure polygon is closed
+        if coords[0] != coords[-1]:
+            coords.append(coords[0])
+
+        polygon_wkt = f"POLYGON(({', '.join(f'{lon} {lat}' for lon, lat in coords)}))"
+        polygon_geom = func.ST_GeomFromText(polygon_wkt, 4326)
+
+        is_valid = db.query(func.ST_IsValid(polygon_geom)).scalar()
+        if not is_valid:
+            return None
+
+        # Resolve conflicts, similar to capture
+        new_geom = TerritoryService._resolve_conflicts(db, polygon_geom, user_id)
+
+        existing = db.query(Territory).filter(Territory.owner_id == user_id).first()
+        if existing:
+            merged = func.ST_Union(existing.polygon, new_geom)
+            existing.polygon = merged
+            existing.area = db.query(func.ST_Area(func.ST_Transform(merged, 3857))).scalar()
+            existing.updated_at = datetime.utcnow()
+            db.commit()
+            return existing
+
+        area = db.query(func.ST_Area(func.ST_Transform(new_geom, 3857))).scalar()
+        territory = Territory(
+            owner_id=user_id,
+            polygon=new_geom,
+            area=area,
+            updated_at=datetime.utcnow(),
+        )
+        db.add(territory)
+        db.commit()
+        db.refresh(territory)
+        return territory
 
     @staticmethod
     def _haversine_distance(lat1, lon1, lat2, lon2):
