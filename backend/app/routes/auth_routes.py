@@ -28,7 +28,6 @@ async def send_otp_route(email: str, db: Session = Depends(get_db)):
 async def verify_otp_route(
     email: str,
     otp: str,
-    response: Response,
     db: Session = Depends(get_db),
 ):
     with db.begin():
@@ -39,26 +38,20 @@ async def verify_otp_route(
 
         session_token, expires_at = create_session(db, user.email)
 
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        samesite="none",
-        secure=False,
-        expires=int(expires_at.timestamp()),
-    )
-
     return {
         "message": "OTP verified successfully",
-        "user_id": user.id
+        "user_id": user.id,
+        "token": session_token,
+        "expires_at": expires_at.isoformat()
     }
 
 
 
 @router.post("/login")
-def login_route(data: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login_route(data: LoginRequest, db: Session = Depends(get_db)):
     with db.begin():
         user = login_with_email_password(db, data.email, data.password)
+        print(f"Login attempt for email: {data.email}, user found: {user.email if user else 'None'}")
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -66,38 +59,27 @@ def login_route(data: LoginRequest, response: Response, db: Session = Depends(ge
             )
         session_token, expires_at = create_session(db, user.email)
 
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        samesite="none",
-        secure=False,
-        expires=int(expires_at.timestamp()),
-    )
-
     return {
         "message": "Login successful",
         "user_id": user.id,
+        "token": session_token,
+        "expires_at": expires_at.isoformat()
     }
 
 
 def get_current_user(
-    session_token: str | None = Cookie(None, alias="session_token"),
     authorization: str | None = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
 ):
-    token = None
 
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-    if not token:
-        token = session_token
-
-    if not token:
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
+
+    token = authorization.split(" ", 1)[1]
+    print("Extracted token:", token)
 
     user = get_user_from_session_token(db, token)
     if not user:
@@ -115,23 +97,16 @@ def me_route(current_user=Depends(get_current_user)):
 
 
 @router.post("/google-login")
-def google_login_route(token: str, response: Response, db: Session = Depends(get_db)):
+def google_login_route(token: str, db: Session = Depends(get_db)):
     with db.begin():
         user = google_login(db, token)
         session_token, expires_at = create_session(db, user.email)
 
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        httponly=True,
-        samesite="none",
-        secure=False,
-        expires=int(expires_at.timestamp()),
-    )
-
     return {
         "message": "Google login successful",
-        "user_id": user.id
+        "user_id": user.id,
+        "token": session_token,
+        "expires_at": expires_at.isoformat()
     }
 
 
