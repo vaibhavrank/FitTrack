@@ -95,11 +95,14 @@ export default function LoginForm({ onForgot }) {
     setApiError("");
     try {
       const data = await loginWithPassword(email, password);
+      const token = saveAuthFromResponse(data);
+      const decoded = token ? decodeToken(token) : null;
       const userPayload = {
-        id: data.user_id,
-        email,
+        id: data.user_id ?? decoded?.sub ?? decoded?.id,
+        email: decoded?.email ?? email,
+        name: decoded?.name,
       };
-      dispatch(login({ user: userPayload, token: null }));
+      dispatch(login({ user: userPayload, token }));
       showToast("Logged in successfully");
       navigate("/");
     } catch (err) {

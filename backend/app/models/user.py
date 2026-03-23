@@ -6,9 +6,11 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=True)
     google_id = Column(String, nullable=True)
+    auth_provider = Column(String, default="email")  # "email" or "google"
 
     # Password reset token (stored as a hash for security)
     reset_password_token_hash = Column(String, nullable=True)

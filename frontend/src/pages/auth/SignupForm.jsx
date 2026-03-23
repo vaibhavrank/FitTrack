@@ -9,7 +9,7 @@ import PasswordBar from "../../components/auth/PasswordBar";
 import OtpInput from "../../components/auth/OtpInput";
 import Timer from "../../components/auth/Timer";
 import { useToast } from "../../components/ToastContext";
-import { sendOtp, verifyOtp, resendOtp, googleLogin, saveAuthFromResponse, decodeToken } from "../../services/authService";
+import { signup, sendOtp, verifyOtp, resendOtp, googleLogin, saveAuthFromResponse, decodeToken } from "../../services/authService";
 
 import { useEffect } from "react";
 
@@ -60,15 +60,14 @@ export default function SignupForm({ onOtpActiveChange }) {
     setApiError("");
 
     try {
-      const res = await sendOtp(email);
-
-      console.log("OTP sent to", res);
+      const res = await signup(name, email, password, confirm);
+      console.log("Signup started", res);
       setStep("otp");
       setOtpExpired(false);
       setTimerKey((k) => k + 1);
     } catch (err) {
-        console.log("Failed to send OTP", err);
-      setApiError(err.message);
+      console.log("Failed to start signup", err);
+      setApiError(err.message || "Unable to start signup");
     } finally {
       setLoading(false);
     }

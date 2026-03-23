@@ -16,6 +16,15 @@ export function saveAuthFromResponse(data) {
   return token;
 }
 
+export function signup(name, email, password, confirmPassword) {
+  return apiConnector.post("/auth/signup", {
+    name,
+    email,
+    password,
+    confirm_password: confirmPassword,
+  });
+}
+
 export function sendOtp(email) {
   console.log("Sending OTP for email:", email);
   return apiConnector.post("/auth/send-otp", null, { params: { email } });
@@ -42,7 +51,11 @@ export function forgotPassword(email) {
 }
 
 export function loginWithPassword(email, password) {
-  return apiConnector.post("/auth/login", { email, password });
+  return apiConnector.post("/auth/login", { email, method: "password", password });
+}
+
+export function loginWithOtp(email, otp) {
+  return apiConnector.post("/auth/login", { email, method: "otp", otp });
 }
 
 export function resetPassword(token, password, email) {

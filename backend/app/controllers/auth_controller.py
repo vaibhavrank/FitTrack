@@ -20,6 +20,15 @@ def generate_otp():
 
 
 async def send_otp(db: Session, email: str):
+    email = email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise ValueError("No user found with this email")
+
+    if user.auth_provider == "google":
+        raise ValueError("User signed up with Google. Please use Google sign-in.")
+
     otp_code = generate_otp()
 
     expires = datetime.utcnow() + timedelta(minutes=5)
@@ -78,17 +87,18 @@ async def verify_otp(db: Session, email: str, otp: str):
 
     # find user
     user = db.query(User).filter(User.email == email).first()
-
-    # create user if not exists, otherwise mark verified
     if not user:
-        user = User(email=email, is_verified=True)
-        db.add(user)
-        db.flush()
-    else:
-        user.is_verified = True
+        print("OTP verification failed: user does not exist")
+        return None
 
-    # delete used otp
+    if user.auth_provider == "google":
+        print("OTP verification failed: account is Google-based")
+        return None
+
+    # mark verified
+    user.is_verified = True
     db.delete(record)
+    db.commit()
 
     return user
 
@@ -111,16 +121,22 @@ def google_login(db: Session, token: str):
 
     if not user:
         user = User(
+            name=email.split("@")[0],
             email=email,
             google_id=google_id,
-            is_verified=True
+            auth_provider="google",
+            is_verified=True,
         )
-
         db.add(user)
         db.flush()
+
     else:
+        if user.auth_provider == "email":
+            raise ValueError("Account exists with email/password and cannot sign in with Google")
+
         if not user.google_id:
             user.google_id = google_id
+        user.auth_provider = "google"
         user.is_verified = True
 
     return user
@@ -157,19 +173,73 @@ def get_user_from_session_token(db: Session, session_token: str):
     return db.query(User).filter(User.email == email).first()
 
 
+def signup_with_email(db: Session, name: str, email: str, password: str, confirm_password: str):
+    """Register user for email signup and return created user (not verified yet)."""
+
+    if not name.strip():
+        raise ValueError("Name is required")
+    if not email.strip() or not password:
+        raise ValueError("Email and password are required")
+    if password != confirm_password:
+        raise ValueError("Password and confirm password must match")
+
+
+    email = email.strip().lower()
+    existing = db.query(User).filter(User.email == email).first()
+    if existing:
+        if existing.auth_provider == "google":
+            raise ValueError("An account exists via Google. Please use Google sign-in")
+        raise ValueError("Account already exists")
+
+    user = User(
+        name=name.strip(),
+        email=email,
+        password_hash=hash_password(password),
+        auth_provider="email",
+        is_verified=False,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+# def login_with_email_password(db: Session, email: str, password: str):
+#     """Verify credentials and return the user if valid."""
+
+#     email = email.strip().lower()
+#     user = db.query(User).filter(User.email == email).first()
+
+#     if not user or user.auth_provider != "email" :
+#         print(f"Login failed: user not found or auth provider mismatch for email: {email}")
+#         return None
+#     if not verify_password(password, user.password_hash):
+#         print(f"Login failed: password verification failed for email: {email}")
+#         return None
+#     if not user or user.auth_provider != "email" or not verify_password(password, user.password_hash):
+#         return None
+
+#     # ensure account is marked verified after successful login
+#     user.is_verified = True
+#     db.commit()
+#     return user
+
 def login_with_email_password(db: Session, email: str, password: str):
     """Verify credentials and return the user if valid."""
 
     email = email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
 
-    if not user or not verify_password(password, user.password_hash):
+    if not user or user.auth_provider != "email":
+        print(f"Login failed: user not found or auth provider mismatch for email: {email}")
+        return None
+    if not verify_password(password, user.password_hash):
+        print(f"Login failed: password verification failed for email: {email}")
         return None
 
     # ensure account is marked verified after successful login
     user.is_verified = True
+    db.commit()
     return user
-
 
 def generate_password_reset_token():
     return secrets.token_urlsafe(32)
