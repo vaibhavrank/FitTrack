@@ -1,20 +1,29 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
+import os
+from dotenv import load_dotenv
+import sys
 from alembic import context
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import app.models
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -45,7 +54,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=url,
         target_metadata=target_metadata,
-        include_schemas=True,
+        include_schemas=False,
         compare_type=True,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -73,11 +82,13 @@ def run_migrations_online() -> None:
             # Ignore PostGIS system tables
             if name in ("spatial_ref_sys", "geometry_columns", "geography_columns"):
                 return False
+            if hasattr(object, "schema") and object.schema in ("auth", "storage", "realtime", "vault"):
+                return False
             return True
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            include_schemas=True,
+            include_schemas=False,
             compare_type=True,
             include_object=include_object
         )
